@@ -1,0 +1,47 @@
+from flask import Flask, render_template, request, redirect, url_for
+import json, os
+
+app = Flask(__name__)
+DB_PATH = 'scam_db.json'
+
+# Load or create scam number database
+def load_db():
+    if not os.path.exists(DB_PATH):
+        with open(DB_PATH, 'w') as f:
+            json.dump([], f)
+    with open(DB_PATH, 'r') as f:
+        return json.load(f)
+
+def save_db(data):
+    with open(DB_PATH, 'w') as f:
+        json.dump(data, f, indent=4)
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/check', methods=['POST'])
+def check_number():
+    number = request.form['number']
+    db = load_db()
+    match = next((entry for entry in db if entry['number'] == number), None)
+    if match:
+        status = match['status']
+        message = f"⚠️ This number is flagged as {status}."
+    else:
+        status = "Unknown"
+        message = "✅ This number is not in the scam list."
+    return render_template('result.html', number=number, status=status, message=message)
+
+@app.route('/report', methods=['POST'])
+def report_number():
+    number = request.form['number']
+    reason = request.form['reason']
+    db = load_db()
+    if not any(entry['number'] == number for entry in db):
+        db.append({"number": number, "status": reason})
+        save_db(db)
+    return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
